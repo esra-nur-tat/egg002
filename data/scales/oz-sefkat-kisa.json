@@ -1,0 +1,40 @@
+{
+  "$schema": "../../schemas/scale.schema.json",
+  "id": "scs-sf",
+  "name": "Self-Compassion Scale - Short Form",
+  "name_tr": "Öz-Şefkat Ölçeği - Kısa Form",
+  "description": "12 maddelik kısa form. Madde metinleri telif nedeniyle yer tutucu — resmi Türkçe uyarlaması eklenecek.",
+  "period": "weekly",
+  "items": [
+    { "n": 1, "text": "MADDE_METNI_EKLENECEK_1" },
+    { "n": 2, "text": "MADDE_METNI_EKLENECEK_2" },
+    { "n": 3, "text": "MADDE_METNI_EKLENECEK_3" },
+    { "n": 4, "text": "MADDE_METNI_EKLENECEK_4" },
+    { "n": 5, "text": "MADDE_METNI_EKLENECEK_5" },
+    { "n": 6, "text": "MADDE_METNI_EKLENECEK_6", "reverse": true },
+    { "n": 7, "text": "MADDE_METNI_EKLENECEK_7", "reverse": true },
+    { "n": 8, "text": "MADDE_METNI_EKLENECEK_8", "reverse": true },
+    { "n": 9, "text": "MADDE_METNI_EKLENECEK_9", "reverse": true },
+    { "n": 10, "text": "MADDE_METNI_EKLENECEK_10", "reverse": true },
+    { "n": 11, "text": "MADDE_METNI_EKLENECEK_11", "reverse": true },
+    { "n": 12, "text": "MADDE_METNI_EKLENECEK_12", "reverse": true }
+  ],
+  "response_options": [
+    { "value": 1, "label": "Neredeyse hiçbir zaman" },
+    { "value": 2, "label": "Nadiren" },
+    { "value": 3, "label": "Bazen" },
+    { "value": 4, "label": "Sıklıkla" },
+    { "value": 5, "label": "Neredeyse her zaman" }
+  ],
+  "scoring": {
+    "method": "mean",
+    "range": { "min": 1, "max": 5 },
+    "interpretation": [
+      { "min": 1, "max": 2.5, "label": "Düşük öz-şefkat" },
+      { "min": 2.5, "max": 3.5, "label": "Orta öz-şefkat" },
+      { "min": 3.5, "max": 5, "label": "Yüksek öz-şefkat" }
+    ]
+  },
+  "source": "Raes et al. (2011); orijinal SCS: Neff (2003)",
+  "note": "Lisans/çeviri durumu klinik ekip ile netleştirilecek."
+}

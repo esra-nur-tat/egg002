@@ -1,0 +1,85 @@
+{
+  "$schema": "../../../schemas/entry.schema.json",
+  "entries": [
+    {
+      "id": "elif-2025-05-03",
+      "persona_id": "elif",
+      "date": "2025-05-03",
+      "type": "daily",
+      "input_mode": "text",
+      "mood_score": 4,
+      "emotion_labels": ["kaygı", "yetersizlik"],
+      "answers": {
+        "what_affected": "Tez danışmanımla görüşme; bölüm sunumunda dondum kaldım.",
+        "values_action": "Yine de laboratuvara gittim ve deneyi baştan tekrarladım."
+      },
+      "text": "Yine beceremedim. Sunumda dondum kaldım, eminim herkes fark etti. Sanki herkes ilerliyor, ben yerimde sayıyorum.",
+      "analysis": {
+        "emotions": ["kaygı", "utan"],
+        "themes": ["akademik-performans", "kıyaslama"],
+        "self_talk_tone": "self-critical",
+        "value_links": ["öğrenme"],
+        "risk_flag": false
+      },
+      "created_at": "2025-05-03T21:12:00+03:00"
+    },
+    {
+      "id": "elif-2025-05-12",
+      "persona_id": "elif",
+      "date": "2025-05-12",
+      "type": "daily",
+      "input_mode": "voice",
+      "mood_score": 3,
+      "emotion_labels": ["çaresizlik", "kaygı"],
+      "answers": {
+        "what_affected": "Danışman taslağı revizyonla geri gönderdi, her yer kırmızı.",
+        "values_action": "Arkadaşımla yürüyüşe çıktım, içimi döktüm."
+      },
+      "text": "Herkes benden daha iyi tez yazıyor. Ben bu programa ait değilim, kabul edilmem bir hataydı.",
+      "analysis": {
+        "emotions": ["çaresizlik", "utan"],
+        "themes": ["sahtekarlık-hissi", "akademik-performans"],
+        "self_talk_tone": "self-critical",
+        "value_links": ["öğrenme"],
+        "risk_flag": false
+      },
+      "created_at": "2025-05-12T22:40:00+03:00"
+    },
+    {
+      "id": "elif-2025-05-20",
+      "persona_id": "elif",
+      "date": "2025-05-20",
+      "type": "daily",
+      "input_mode": "text",
+      "mood_score": 5,
+      "emotion_labels": ["kararsız"],
+      "answers": {
+        "what_affected": "Deney sonunda çalıştı.",
+        "values_action": "Tez ikinci bölümün ilk paragrafını bitirdim."
+      },
+      "text": "Bugün biraz daha iyiydim ama yarın muhtemelen yine batırırım. Geçici şans herhalde.",
+      "analysis": {
+        "emotions": ["umut", "şüphe"],
+        "themes": ["akademik-performans", "olumsuz-beklenti"],
+        "self_talk_tone": "self-critical",
+        "value_links": ["öğrenme"],
+        "risk_flag": false
+      },
+      "created_at": "2025-05-20T20:05:00+03:00"
+    },
+    {
+      "id": "elif-2025-05-25",
+      "persona_id": "elif",
+      "date": "2025-05-25",
+      "type": "weekly",
+      "input_mode": "text",
+      "text": "Bu hafta zordu. Uyku düzensiz, danışman toplantısı gergin geçti.",
+      "scale": {
+        "scale_id": "who5",
+        "responses": [1, 2, 1, 1, 2],
+        "total": 7
+      },
+      "created_at": "2025-05-25T19:30:00+03:00"
+    }
+  ]
+}

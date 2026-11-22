@@ -1,0 +1,637 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta content="width=device-width, initial-scale=1.0" name="viewport">
+  <title>Dijital Kişilik Arşivi / My Eras</title>
+  <!-- Tasarim: dijital_ki_ilik_ar_ivi_my_eras.html. Stil web/app.in.css'ten derlenir: npm run build:css -->
+  <link rel="stylesheet" href="/web/app.css">
+</head>
+<body class="bg-surface font-body-md text-body-md text-on-surface min-h-screen flex flex-col">
+  <div class="min-h-screen flex flex-col bg-surface">
+    <header id="header" class="fixed top-0 left-0 right-0 w-full z-50 bg-secondary-container shadow-[0_1px_8px_rgba(0,0,0,0.04)]"></header>
+    <main id="view" class="w-full pt-16 pb-12 flex-1 bg-surface"></main>
+    <footer class="fixed bottom-0 left-0 right-0 w-full z-40 bg-surface-container-high shadow-[0_-1px_6px_rgba(0,0,0,0.03)] border-t border-outline-variant/20">
+      <div class="h-10 w-full px-gutter-desktop flex items-center justify-between">
+        <div class="flex items-center gap-space-md">
+          <div class="flex items-center gap-space-xs bg-secondary-container px-space-sm py-space-xs rounded">
+            <span class="material-symbols-outlined text-primary text-[16px]">terminal</span>
+            <span class="font-label-md text-label-md text-on-secondary-container font-bold">DKA_OS v1.0.4</span>
+          </div>
+          <div class="hidden sm:flex items-center gap-space-xs text-on-surface-variant">
+            <span class="material-symbols-outlined text-[14px] text-primary">favorite</span>
+            <span class="font-label-sm text-label-sm">Anılar bu cihazda mühürlü.</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-space-lg">
+          <div class="flex items-center gap-space-xs text-on-surface-variant">
+            <span class="material-symbols-outlined text-[14px]">monitor</span>
+            <span class="font-label-sm text-label-sm">640x480 CRT</span>
+          </div>
+          <div class="flex items-center gap-space-xs bg-surface-container px-space-sm py-space-xs rounded text-on-surface">
+            <span class="material-symbols-outlined text-[14px]">schedule</span>
+            <span id="clock" class="font-label-sm text-label-sm"></span>
+          </div>
+        </div>
+      </div>
+    </footer>
+  </div>
+
+<script type="module">
+import { pixelAvatar, EMOTIONS } from "/web/pixel-avatar.mjs";
+const $ = (s, el = document) => el.querySelector(s);
+const view = $("#view"), header = $("#header");
+
+// ---------- yardimcilar ----------
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const has = (x) => x !== null && x !== undefined && x !== "" && x !== "null" && !(Array.isArray(x) && !x.length);
+const ROMAN = (n) => [["X", 10], ["IX", 9], ["V", 5], ["IV", 4], ["I", 1]].reduce((s, [r, v]) => { while (n >= v) { s += r; n -= v; } return s; }, "");
+const AY = ["Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran", "Temmuz", "Ağustos", "Eylül", "Ekim", "Kasım", "Aralık"];
+const clockNow = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
+const todayLabel = () => { const d = new Date(); return `${AY[d.getMonth()]} ${d.getFullYear()}`; };
+
+function dateRange(era, recap) {
+  const y = era.period.slice(0, 4), h1 = era.period[5] === "1";
+  let end = h1 ? "Haziran" : "Aralık";
+  const [m, yy] = (recap?.now ?? "").split(" ");
+  if (yy === y && AY.indexOf(m) >= (h1 ? 0 : 6) && AY.indexOf(m) < (h1 ? 6 : 12)) end = m;
+  return `${h1 ? "Ocak" : "Temmuz"} ${y} – ${end} ${y}`;
+}
+const chapter = (era) => `Bölüm ${era.roman}`;
+const coverUrl = (r) => (r?.kapak_gorseli ? `/media/instagram/${r.kapak_gorseli.replace(/^media\//, "").split("/").map(encodeURIComponent).join("/")}` : null);
+
+// ---------- durum ----------
+let eras = [], recaps = {}, route = { period: null, page: "index" };
+const chats = {}; // period -> { history, shown, opened }
+let muted = localStorage.getItem("dka-muted") === "1";
+
+async function init() {
+  const list = (await (await fetch("/api/periods")).json()).filter((p) => p.ready);
+  const asc = [...list].sort((a, b) => a.period.localeCompare(b.period));
+  asc.forEach((e, i) => { e.n = i + 1; e.roman = ROMAN(i + 1); });
+  eras = list; // yeniden eskiye
+  await Promise.all(eras.map(async (e) => {
+    const r = await fetch(`/api/recap?period=${e.period}`);
+    if (r.ok) recaps[e.period] = await r.json();
+  }));
+  window.addEventListener("hashchange", render);
+  render();
+}
+
+function parseRoute() {
+  const [, period, page] = location.hash.replace(/^#/, "").split("/");
+  const era = eras.find((e) => e.period === period);
+  if (!era) return { era: null, page: "index" };
+  return { era, page: ["recap", "odak", "sohbet"].includes(page) ? page : "kapak" };
+}
+const href = (era, page = "") => `#/${era.period}${page ? "/" + page : ""}`;
+
+function render() {
+  route = parseRoute();
+  renderHeader();
+  const { era, page } = route;
+  const r = era ? recaps[era.period] : null;
+  view.innerHTML = page === "index" ? IndexPage() : page === "kapak" ? CoverPage(era, r) : page === "recap" ? RecapPage(era, r) : page === "odak" ? FocusPage(era, r) : ChatPage(era, r);
+  window.scrollTo(0, 0);
+  if (page === "sohbet") bindChat(era, r);
+}
+
+// ---------- header ----------
+function renderHeader() {
+  const { era, page } = route;
+  const cls = (p) => `px-space-md py-space-xs font-label-md text-label-md rounded-lg transition-colors ${page === p
+    ? "bg-primary-container text-on-primary-container font-bold shadow-sm" : "text-on-surface-variant hover:text-on-surface"}`;
+  const link = (p, label) => era ? `<a href="${href(era, p === "kapak" ? "" : p)}" class="${cls(p)}">${label}</a>` : "";
+  const r = era ? recaps[era.period] : null;
+  header.innerHTML = `
+    <div class="h-16 w-full px-gutter-desktop flex items-center justify-between gap-space-md">
+      <div class="flex items-center gap-space-lg">
+        <a href="#/" class="flex items-center gap-space-xs cursor-pointer group">
+          <span class="material-symbols-outlined text-primary text-[22px] group-hover:rotate-12 transition-transform">auto_stories</span>
+          <span class="font-headline-sm text-headline-sm text-on-secondary-fixed tracking-tight font-bold">dka.exe</span>
+        </a>
+        <nav class="hidden lg:flex items-center gap-space-xs">
+          ${era ? link("kapak", "Kapak / Bölüm") + link("recap", "Sayfa 1: Recap") + link("odak", "Sayfa 2: Dönemin Odağı") + link("sohbet", "Geçmişimle Sohbet")
+            : `<a href="#/" class="${cls("index")}">Bölümler</a>`}
+        </nav>
+      </div>
+      <div class="relative hidden md:block">
+        <button id="eraPill" type="button" class="flex items-center gap-space-xs bg-surface-container px-space-md py-space-xs rounded-lg border border-outline-variant/30 cursor-pointer hover:bg-surface-container-high transition-colors">
+          <span class="material-symbols-outlined text-primary text-[14px]">star</span>
+          <span class="font-label-md text-label-md text-on-surface">${era ? esc(`${chapter(era)}: ${r?.baslik ?? era.label}`) : "Bir bölüm seç"}</span>
+          <span class="material-symbols-outlined text-primary text-[14px]">star</span>
+          <span class="material-symbols-outlined text-on-surface-variant text-[16px]">expand_more</span>
+        </button>
+        <div id="eraMenu" hidden class="absolute right-0 mt-space-xs w-80 max-h-[70vh] overflow-y-auto bg-surface-container-lowest rounded-xl shadow-xl border border-outline-variant/30 p-space-xs z-50">
+          ${eras.map((e) => `<a href="${href(e)}" class="flex flex-col px-space-md py-space-sm rounded-lg hover:bg-surface-container ${era === e ? "bg-primary-fixed" : ""}">
+              <span class="font-label-sm text-label-sm text-primary font-bold uppercase">${esc(chapter(e))} · ${esc(e.ago)}</span>
+              <span class="text-[14px] text-on-surface">${esc(recaps[e.period]?.baslik ?? e.label)}</span>
+            </a>`).join("")}
+        </div>
+      </div>
+      <div class="flex items-center gap-space-md">
+        <div class="flex items-center gap-space-xs bg-tertiary-fixed px-space-sm py-space-xs rounded-lg shadow-sm">
+          <span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
+          <span class="font-label-sm text-label-sm text-on-tertiary-fixed font-bold">SENKRONİZE</span>
+        </div>
+        <button id="mute" aria-label="Ses ayarı" title="${muted ? "Sesi Aç" : "Sesi Kapat"}" type="button"
+          class="w-8 h-8 flex items-center justify-center bg-surface-container text-on-surface-variant hover:text-on-surface rounded-lg transition-colors">
+          <span class="material-symbols-outlined text-[18px]">${muted ? "volume_off" : "volume_up"}</span>
+        </button>
+        <div class="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-on-primary shadow-sm">
+          <span class="material-symbols-outlined text-[18px]">person</span>
+        </div>
+      </div>
+    </div>`;
+  $("#eraPill").onclick = (e) => { e.stopPropagation(); $("#eraMenu").hidden = !$("#eraMenu").hidden; };
+  $("#mute").onclick = () => { muted = !muted; localStorage.setItem("dka-muted", muted ? "1" : "0"); renderHeader(); };
+}
+document.addEventListener("click", () => { const m = $("#eraMenu"); if (m) m.hidden = true; });
+
+// gecmis sen cevap verince kisa bir sinyal sesi (WebAudio, dosya yok)
+function blip() {
+  if (muted) return;
+  try {
+    const ac = new AudioContext(), o = ac.createOscillator(), g = ac.createGain();
+    o.type = "square"; o.frequency.value = 880; g.gain.value = 0.03;
+    o.connect(g).connect(ac.destination); o.start();
+    o.frequency.setValueAtTime(1320, ac.currentTime + 0.06);
+    g.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + 0.18); o.stop(ac.currentTime + 0.2);
+  } catch { /* ses yok */ }
+}
+
+// ---------- 0: BOLUMLER ----------
+function IndexPage() {
+  return `
+  <div class="flex flex-col w-full">
+    <div class="w-full max-w-6xl mx-auto px-margin md:px-margin-desktop py-space-xl flex flex-col gap-space-xl">
+      <div class="w-full bg-surface-container-lowest p-space-lg shadow-sm border border-surface-container-high flex flex-col gap-2 rounded-lg">
+        <span class="text-primary font-headline-sm tracking-wider uppercase text-label-md">Dijital Kişilik Arşivi</span>
+        <h1 class="text-[28px] md:text-[32px] font-bold text-on-surface tracking-tight leading-tight">My Eras</h1>
+        <p class="text-[17px] text-on-surface-variant leading-relaxed">Her bölüm hayatının altı ayı. Birini aç, defteri oku, sonra o zamanki kendinle konuş.</p>
+      </div>
+      ${eras.length ? `<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-space-xl">
+        ${eras.map((e) => {
+          const r = recaps[e.period], img = coverUrl(r);
+          return `<a href="${href(e)}" class="group bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/20 overflow-hidden flex flex-col hover:shadow-lg transition-shadow">
+            <div class="h-40 bg-surface-container overflow-hidden">${img
+              ? `<img src="${img}" alt="" class="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105">`
+              : `<div class="w-full h-full bg-gradient-to-br from-primary-container to-secondary-container flex items-center justify-center font-headline-lg text-[44px] text-on-primary-container font-bold">${e.roman}</div>`}</div>
+            <div class="p-space-lg flex flex-col gap-1">
+              <span class="font-label-sm text-label-sm text-primary font-bold uppercase tracking-wider">${esc(chapter(e))} · ${esc(e.ago)}</span>
+              <span class="text-[19px] font-bold text-on-surface leading-snug">${esc(r?.baslik ?? e.label)}</span>
+              <span class="font-label-sm text-label-sm text-on-surface-variant uppercase">${esc(dateRange(e, r))}</span>
+            </div>
+          </a>`;
+        }).join("")}
+      </div>` : `<p class="text-on-surface-variant">Henüz hazır bölüm yok. <code>node scripts/build-persona.mjs</code> ve <code>node scripts/build-recap.mjs</code> çalıştır.</p>`}
+    </div>
+  </div>`;
+}
+
+// ---------- 1: KAPAK ----------
+function ribbon(era, active) {
+  const items = [["", "bookmark", "1. BÖLÜM KAPAĞI"], ["recap", "grid_view", "2. MY ERA RECAP"], ["odak", "edit_calendar", "3. DÖNEMİN ODAĞI"], ["sohbet", "forum", "4. GEÇMİŞLE SOHBET"]];
+  return `
+  <div class="w-full max-w-4xl mb-space-lg flex items-center justify-between gap-space-xs overflow-x-auto pb-space-xs">
+    <div class="flex items-center gap-space-xs">
+      ${items.map(([p, icon, label], i) => `<a href="${href(era, p)}" class="px-space-md py-space-xs ${p === active
+        ? "bg-primary-container text-on-primary-container shadow-md" : i === 1 ? "bg-secondary-container text-on-secondary-container shadow-sm hover:bg-secondary-fixed" : "bg-surface-container-high text-on-surface-variant shadow-sm hover:bg-surface-variant"} font-label-md text-label-md flex items-center gap-space-xs rounded-lg whitespace-nowrap transition-colors">
+        <span class="material-symbols-outlined text-[14px]">${icon}</span>${label}${p === active ? " (AKTİF)" : ""}</a>`).join("")}
+    </div>
+    <div class="hidden sm:flex items-center gap-space-xs px-space-md py-space-xs bg-tertiary-fixed text-on-tertiary-fixed font-label-sm text-label-sm shadow-sm rounded-lg whitespace-nowrap">
+      <span class="material-symbols-outlined text-[13px]">lock_open</span><span>[ARŞİV KİLİDİ AÇILDI ✦]</span>
+    </div>
+  </div>`;
+}
+
+function CoverPage(era, r) {
+  const img = coverUrl(r);
+  return `
+  <div class="flex flex-col w-full">
+    <div class="w-full px-gutter-desktop py-space-xl flex flex-col items-center">
+      ${ribbon(era, "")}
+      <div class="w-full max-w-3xl bg-surface-container-lowest rounded-xl shadow-xl p-space-xl flex flex-col items-center text-center gap-space-lg border border-outline-variant/30">
+        <div class="py-space-md w-full flex flex-col items-center gap-space-xl">
+          <div class="flex flex-col items-center gap-space-xs max-w-2xl text-center">
+            <h1 class="font-headline-lg text-[34px] md:text-[42px] leading-tight text-primary tracking-tight font-bold uppercase text-center">${esc(dateRange(era, r))}</h1>
+            <p class="font-headline-sm text-headline-sm text-on-surface-variant uppercase tracking-tight">${esc(chapter(era))}: ${esc(r?.baslik ?? era.label)}</p>
+            <p class="font-label-sm text-label-sm text-outline uppercase">${esc(era.ago)}${has(r?.age) ? ` · ${esc(r.age)} yaş` : ""}</p>
+          </div>
+          <div class="w-full max-w-lg h-64 md:h-72 rounded-xl overflow-hidden shadow-lg border border-outline-variant/30 bg-surface-container">
+            ${img ? `<img class="w-full h-full object-cover transition-transform duration-700 hover:scale-105" alt="Kapak" src="${img}">`
+              : `<div class="w-full h-full bg-gradient-to-br from-primary-container via-secondary-container to-tertiary-fixed flex flex-col items-center justify-center gap-space-xs">
+                  <span class="font-headline-lg text-[64px] text-on-primary-container font-bold leading-none">${era.roman}</span>
+                  <span class="font-label-md text-label-md text-on-primary-container uppercase">${esc(chapter(era))}</span></div>`}
+          </div>
+          ${has(r?.kapak_cumlesi) ? `<div class="max-w-2xl px-space-md"><p class="font-body-lg text-[18px] md:text-[20px] leading-relaxed text-on-surface text-center italic">«${esc(r.kapak_cumlesi.replace(/^[«"“]+|[»"”]+$/g, ""))}»</p></div>` : ""}
+          <div class="pt-space-sm w-full flex flex-col sm:flex-row justify-center gap-space-md">
+            <a href="${href(era, "recap")}" class="px-space-xl py-space-md min-w-[240px] bg-primary text-on-primary font-headline-sm text-[17px] rounded-xl shadow-lg flex items-center justify-center gap-space-sm transition-transform active:translate-y-0.5 hover:bg-on-primary-container cursor-pointer">
+              <span class="material-symbols-outlined text-[24px]">auto_stories</span><span>DEFTERİ AÇ →</span></a>
+            <a href="${href(era, "sohbet")}" class="px-space-xl py-space-md min-w-[240px] bg-secondary text-on-secondary font-headline-sm text-[17px] rounded-xl shadow-lg flex items-center justify-center gap-space-sm transition-transform active:translate-y-0.5 hover:bg-surface-variant hover:text-on-surface cursor-pointer">
+              <span class="material-symbols-outlined text-[24px]">forum</span><span>SOHBETE BAŞLA 💬</span></a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function missing(era) {
+  return `<div class="w-full max-w-3xl mx-auto px-margin py-space-xl"><div class="bg-surface-container-lowest p-space-xl rounded-xl border border-outline-variant/20">
+    <p class="text-on-surface-variant">Bu bölümün defteri henüz hazırlanmadı (<code>node scripts/build-recap.mjs ${era.period}</code>). Yine de <a class="text-primary font-bold" href="${href(era, "sohbet")}">o dönemin seninle konuşabilirsin →</a></p></div></div>`;
+}
+
+// ---------- 2: RECAP ----------
+function RecapPage(era, r) {
+  if (!r) return missing(era);
+  const a = r.anlar ?? {}, st = r.stats ?? {};
+  const sec = (icon, color, title, body) => `
+    <section class="bg-surface-container-lowest p-space-xl shadow-sm rounded-xl flex flex-col gap-space-md border border-outline-variant/20">
+      <div class="flex items-center gap-space-sm"><span class="material-symbols-outlined ${color} text-[26px]">${icon}</span>
+        <h2 class="text-[24px] font-bold text-on-surface tracking-tight">${title}</h2></div>${body}</section>`;
+  const p = (t) => `<p class="text-[18px] text-on-surface leading-relaxed">${esc(t)}</p>`;
+  const chip = (icon, color, t, italic) => has(t) ? `<div class="flex items-center gap-space-xs bg-surface-container-low px-3 py-1.5 rounded-lg border border-surface-container">
+      <span class="material-symbols-outlined ${color} text-[20px]">${icon}</span><span class="${italic ? "italic font-medium" : ""}">${esc(t)}</span></div>` : "";
+  const quoteDate = a.ters_kose?.alinti_tarih ? new Date(a.ters_kose.alinti_tarih).toLocaleDateString("tr-TR", { day: "numeric", month: "long" }) : "";
+
+  const zafer = has(a.zafer?.anlatim) ? sec("military_tech", "text-primary", "1. Zafer Raporu", p(a.zafer.anlatim) + `
+    <div class="mt-space-sm p-space-lg bg-surface-container-low rounded-xl flex flex-col gap-space-sm border border-surface-container">
+      <div class="flex justify-between items-center gap-space-md text-[16px]">
+        <span class="text-on-surface-variant font-medium">${esc(a.zafer.baslik ?? "")}</span>
+        <span class="font-bold text-primary font-mono text-right">${esc(a.zafer.tarih ?? "")}</span>
+      </div>
+      <div class="w-full h-3 bg-surface-container-high rounded-full overflow-hidden"><div class="h-full bg-primary rounded-full shadow-sm w-full"></div></div>
+    </div>`) : "";
+  const ters = has(a.ters_kose?.anlatim) ? sec("alt_route", "text-tertiary", "2. Ters Köşe", p(a.ters_kose.anlatim) + (has(a.ters_kose.alinti) ? `
+    <blockquote class="mt-space-xs p-space-lg bg-surface-container-low rounded-xl border-l-4 border-tertiary text-[17px] text-on-surface-variant italic leading-relaxed m-0 shadow-inner">
+      “${esc(a.ters_kose.alinti)}”${quoteDate ? `<span class="block not-italic font-label-sm text-label-sm text-outline mt-space-xs">— kendi mesajın, ${esc(quoteDate)}</span>` : ""}
+    </blockquote>` : "")) : "";
+  const basrol = has(a.basrol?.anlatim) ? sec("auto_awesome", "text-primary", "3. Başrol Anı", p(a.basrol.anlatim) + `
+    <div class="flex flex-wrap items-center gap-space-md mt-space-xs text-[16px] text-on-surface-variant">
+      ${chip("event", "text-primary", a.basrol.tarih)}${chip("location_on", "text-primary", a.basrol.yer)}${chip("headphones", "text-secondary", a.basrol.sarki, true)}
+    </div>`) : "";
+
+  const statRow = (k, v, color, last) => `<div class="flex justify-between py-1 ${last ? "" : "border-b border-surface-container-low"}">
+      <span class="text-on-surface-variant">${k}</span><span class="font-bold ${color} font-mono">${esc(v)}</span></div>`;
+  const who = r.person?.name;
+
+  const vs = has(r.o_zaman_simdi) ? sec("compare_arrows", "text-secondary", "4. O Zaman → Şimdi", `
+    <div class="flex flex-col gap-space-sm">
+      ${r.o_zaman_simdi.map((x) => `<div class="grid grid-cols-1 md:grid-cols-[160px_1fr_1fr] gap-space-sm md:gap-space-md p-space-lg bg-surface-container-low rounded-xl border border-surface-container">
+        <span class="font-label-md text-label-md text-primary font-bold uppercase">${esc(x.konu)}</span>
+        <div><span class="block font-label-sm text-label-sm text-outline uppercase">o zaman</span><span class="text-[16px] text-on-surface">${esc(x.o_zaman)}</span></div>
+        <div><span class="block font-label-sm text-label-sm text-tertiary uppercase">şimdi</span><span class="text-[16px] text-on-surface">${esc(x.simdi)}</span></div>
+      </div>`).join("")}
+    </div>`) : "";
+  const same = has(r.ayni_kalan) ? sec("all_inclusive", "text-tertiary", `${has(r.o_zaman_simdi) ? "5" : "4"}. Aynı Kalanlar`, `
+    <ul class="flex flex-col gap-space-sm m-0 p-0 list-none">
+      ${r.ayni_kalan.map((x) => `<li class="flex items-start gap-space-sm text-[17px] text-on-surface"><span class="material-symbols-outlined text-tertiary text-[20px] mt-0.5">check_circle</span><span>${esc(x)}</span></li>`).join("")}
+    </ul>`) : "";
+
+  return `
+  <div class="flex flex-col w-full">
+    <div class="w-full max-w-6xl mx-auto px-margin md:px-margin-desktop py-space-xl flex flex-col gap-space-xl relative">
+      <div class="w-full bg-surface-container-lowest p-space-lg shadow-sm border border-surface-container-high flex flex-col md:flex-row md:items-center justify-between gap-space-md rounded-lg">
+        <div class="flex flex-col gap-2">
+          <span class="text-primary font-headline-sm tracking-wider uppercase text-label-md">Dönem Retrospektifi · ${esc(chapter(era))}</span>
+          <h1 class="text-[28px] md:text-[32px] font-bold text-on-surface tracking-tight leading-tight">My Era Recap</h1>
+          <p class="text-[17px] text-on-surface-variant leading-relaxed">${esc(r.baslik ?? "")} · ${esc(dateRange(era, r))} · Hatıra Defteri</p>
+        </div>
+        <div class="flex items-center gap-space-md self-start md:self-auto shrink-0">
+          <a href="${href(era)}" class="px-space-lg py-space-sm bg-surface-container hover:bg-surface-container-highest text-on-surface font-body-md text-[15px] font-medium flex items-center gap-space-xs transition-colors rounded-lg">
+            <span class="material-symbols-outlined text-[18px]">arrow_back</span><span>Bölüm Kapağı</span></a>
+          <a href="${href(era, "odak")}" class="px-space-lg py-space-sm bg-primary text-on-primary hover:brightness-105 font-body-md text-[15px] font-medium flex items-center gap-space-xs transition-transform active:translate-y-0.5 rounded-lg shadow-sm">
+            <span>Dönemin Odağı</span><span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-space-xl items-start">
+        <div class="lg:col-span-8 flex flex-col gap-space-xl">${zafer}${ters}${basrol}</div>
+        <div class="lg:col-span-4 flex flex-col gap-space-md">
+          <div class="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm border border-outline-variant/20 flex flex-col gap-space-md">
+            <div class="flex items-center gap-2 border-b border-surface-container pb-space-sm">
+              <span class="material-symbols-outlined text-primary text-[22px]">history_edu</span>
+              <h3 class="font-headline-sm text-on-surface font-bold">Kayıt İstatistikleri</h3>
+            </div>
+            <div class="space-y-3 font-label-md text-label-md">
+              ${statRow("Gece Yarısı Sohbetleri:", `${st.gece ?? 0} Gece`, "text-primary")}
+              ${statRow("Yazdığın Mesaj:", (st.mesaj ?? 0).toLocaleString("tr-TR"), "text-secondary")}
+              ${statRow("İzlenen Video:", (st.video ?? 0).toLocaleString("tr-TR"), "text-tertiary")}
+              ${statRow("En Hareketli Gün:", st.gun ?? "—", "text-on-surface", true)}
+            </div>
+          </div>
+          ${who && has(r.insan) ? `<div class="bg-surface-container-lowest p-space-lg rounded-xl shadow-sm border border-outline-variant/20 flex flex-col gap-space-md">
+            <div class="flex items-center gap-2 border-b border-surface-container pb-space-sm">
+              <span class="material-symbols-outlined text-primary text-[22px]">diversity_1</span>
+              <h3 class="font-headline-sm text-on-surface font-bold">Dönemin İnsanı</h3>
+            </div>
+            <div class="flex items-center gap-space-md">
+              <div class="w-11 h-11 rounded-full bg-primary-container text-on-primary-container flex items-center justify-center font-bold text-[18px] shrink-0">${esc([...who.trim()][0]?.toLocaleUpperCase("tr") ?? "?")}</div>
+              <span class="text-[18px] font-bold text-on-surface">${esc(who)}</span>
+            </div>
+            <p class="text-[15px] text-on-surface-variant leading-relaxed m-0">${esc(r.insan)}</p>
+          </div>` : ""}
+          <div class="bg-secondary-container/40 p-space-lg rounded-xl border border-secondary-container flex flex-col gap-2">
+            <div class="flex items-center gap-2 text-primary font-bold"><span class="material-symbols-outlined text-[20px]">lightbulb</span><span class="text-[15px]">Arşiv Notu</span></div>
+            <p class="text-[14px] text-on-secondary-fixed leading-relaxed m-0">Bu bölüm, o dönemde kendi yazdıklarından derlendi ve bu cihazda saklanıyor. Dilediğin an o günkü benliğine mesaj gönderebilirsin.</p>
+          </div>
+        </div>
+      </div>
+
+      ${vs}${same}
+
+      <div class="w-full bg-surface-container-lowest p-space-md shadow-sm border border-surface-container-high flex flex-col sm:flex-row items-center justify-between gap-space-md rounded-lg mt-space-md">
+        <div class="flex items-center gap-space-sm"><div class="w-2.5 h-2.5 rounded-full bg-tertiary"></div>
+          <span class="font-body-md text-body-md text-on-surface font-medium">Seyir Defteri Retrospektifi Tamamlandı</span></div>
+        <div class="flex items-center gap-space-sm w-full sm:w-auto">
+          <a href="${href(era, "sohbet")}" class="flex-1 sm:flex-none px-space-lg py-space-sm bg-surface-container hover:bg-surface-container-highest text-on-surface font-body-md text-body-md transition-colors rounded-lg flex items-center justify-center gap-space-xs">
+            <span class="material-symbols-outlined text-[18px] text-secondary">forum</span><span>Bu dönemin benliğiyle konuş</span></a>
+          <a href="${href(era, "odak")}" class="flex-1 sm:flex-none px-space-lg py-space-sm bg-primary hover:brightness-105 text-on-primary font-body-md text-body-md font-bold transition-transform active:translate-y-0.5 rounded-lg shadow-sm flex items-center justify-center gap-space-xs">
+            <span>Sayfa 2: Dönemin Odağı</span><span class="material-symbols-outlined text-[18px]">arrow_forward</span></a>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ---------- 3: DONEMIN ODAGI ----------
+
+function moodChart(aylar) {
+  const pts = aylar.filter((m) => Number.isFinite(Number(m?.puan)));
+  if (pts.length < 2) return "";
+  const W = 680, x0 = 56, x1 = 624;
+  const P = pts.map((m, i) => {
+    const v = Math.min(10, Math.max(1, Number(m.puan)));
+    return { x: x0 + (i * (x1 - x0)) / (pts.length - 1), y: 205 - ((v - 1) / 9) * 140, v, ay: m.ay, et: String(m.etiket ?? "") };
+  });
+  // Catmull-Rom -> Bezier: yumusak egri
+  let d = `M ${P[0].x} ${P[0].y}`;
+  for (let i = 0; i < P.length - 1; i++) {
+    const p0 = P[i - 1] ?? P[i], p1 = P[i], p2 = P[i + 1], p3 = P[i + 2] ?? p2;
+    d += ` C ${p1.x + (p2.x - p0.x) / 6} ${p1.y + (p2.y - p0.y) / 6}, ${p2.x - (p3.x - p1.x) / 6} ${p2.y - (p3.y - p1.y) / 6}, ${p2.x} ${p2.y}`;
+  }
+  const col = (v) => (v <= 4 ? "#a63922" : v >= 7 ? "#416559" : "#d88a64");
+  const short = (t) => (t.length > 16 ? t.slice(0, 15) + "…" : t);
+  return `<svg viewBox="0 0 ${W} 270" class="w-full h-auto select-none">
+    <defs><linearGradient id="moodFill" x1="0%" y1="0%" x2="0%" y2="100%"><stop offset="0%" stop-color="#e87cb0" stop-opacity="0.22"></stop><stop offset="100%" stop-color="#e87cb0" stop-opacity="0.02"></stop></linearGradient></defs>
+    <g opacity="0.28" stroke="#867279" stroke-dasharray="4 4" stroke-width="1"><line x1="20" y1="65" x2="660" y2="65"></line><line x1="20" y1="135" x2="660" y2="135"></line><line x1="20" y1="205" x2="660" y2="205"></line></g>
+    <path d="${d} L ${P.at(-1).x} 225 L ${P[0].x} 225 Z" fill="url(#moodFill)"></path>
+    <path d="${d}" fill="none" stroke="#d88a64" stroke-width="6" stroke-linecap="round"></path>
+    <path d="${d}" fill="none" stroke="#3b5266" stroke-dasharray="6 4" stroke-width="2" stroke-linecap="round"></path>
+    ${P.map((p) => `<text x="${p.x}" y="${p.y - 18}" text-anchor="middle" font-size="13" font-weight="bold" fill="${col(p.v)}">${esc(short(p.et))}</text>
+      <circle cx="${p.x}" cy="${p.y}" r="7" fill="#ffffff" stroke="${col(p.v)}" stroke-width="4"></circle>
+      <text x="${p.x}" y="252" text-anchor="middle" font-size="14" font-style="italic" font-weight="bold" fill="#2d495e">${esc(p.ay)}</text>`).join("")}
+  </svg>`;
+}
+
+function FocusPage(era, r) {
+  if (!r) return missing(era);
+  const z = r.zihin ?? {}, e = r.eslikciler ?? {}, mod = r.mod ?? {};
+  const box = (icon, title, body, extra = "", badge = "") => `
+    <section class="bg-surface-container-lowest shadow-md flex flex-col justify-between rounded-lg border border-outline-variant/20 overflow-hidden ${extra}">
+      <div class="p-space-lg flex flex-col gap-space-lg h-full">
+        <div class="flex items-center justify-between gap-space-sm pb-space-xs border-b border-surface-container">
+          <div class="flex items-center gap-space-xs">
+            <span class="material-symbols-outlined text-primary text-[28px]">${icon}</span>
+            <h2 class="text-[26px] font-headline-lg font-bold text-on-surface tracking-tight">${title}</h2>
+          </div>${badge ? `<span class="font-label-sm text-secondary bg-secondary-container px-space-sm py-space-xs uppercase tracking-wider font-bold rounded whitespace-nowrap">${badge}</span>` : ""}
+        </div>${body}</div></section>`;
+
+  // 1. muzik: yerelde sayilan parcalar; yoksa ozetteki liste
+  const tracks = has(r.muzik_sayilari) ? r.muzik_sayilari : (e.muzik ?? []).map((t) => ({ title: t }));
+  const [now, ...rest] = tracks;
+  const music = now ? `
+    <div class="bg-surface-container p-space-lg flex flex-col gap-space-md shadow-sm rounded-lg">
+      <div class="flex flex-col gap-1">
+        <span class="text-[14px] text-secondary font-label-md uppercase tracking-wider font-bold">Dönemin parçası</span>
+        <div class="text-[20px] font-title-md font-bold text-on-surface">${esc(now.artist ? `${now.artist} – ${now.title}` : now.title)}</div>
+        ${now.count ? `<span class="text-[15px] text-on-surface-variant font-body-md">Bu altı ayda ${now.count} kez açıldı · YouTube</span>` : ""}
+      </div>
+      ${now.url ? `<div class="flex items-center gap-space-sm pt-space-xs"><a href="${esc(now.url)}" target="_blank" rel="noopener noreferrer" class="px-space-lg py-space-xs font-label-md text-[14px] flex items-center gap-space-xs rounded-lg transition-all bg-primary text-on-primary shadow-sm">
+        <span class="material-symbols-outlined text-[18px]">play_arrow</span><span>Oynat</span></a></div>` : ""}
+    </div>
+    ${rest.length ? `<div class="space-y-space-sm pt-space-xs">
+      <div class="text-[14px] font-label-md text-on-surface-variant uppercase tracking-wider font-bold">Döngüdeki Diğer Parçalar</div>
+      <div class="space-y-space-xs">${rest.slice(0, 4).map((t) => `<div class="p-space-md bg-surface-container-low flex items-center justify-between gap-space-md text-[16px] md:text-[17px] font-body-lg text-on-surface rounded-lg">
+        <span>${esc(t.artist ? `${t.title} — ${t.artist}` : t.title)}</span>${t.count ? `<span class="text-[14px] font-label-md text-secondary font-bold font-mono whitespace-nowrap">${t.count} kez</span>` : ""}</div>`).join("")}</div>
+    </div>` : ""}` : `<p class="text-on-surface-variant">Bu döneme ait müzik izi yok.</p>`;
+
+  // 2. mod
+  // piksel avatar: baskin duygu yuz + govde, ikinci duygu sac (web/pixel-avatar.mjs, yerel)
+  const baskin = (mod.baskin ?? []).filter((x) => EMOTIONS[x]).slice(0, 2);
+  const avatar = pixelAvatar(baskin, { size: 64 });
+  const mood = `
+    <div class="p-space-md bg-surface-container flex items-center gap-space-md rounded-lg">
+      <div class="w-20 h-20 rounded-xl border-2 border-stone-800 shadow-sm shrink-0 flex items-center justify-center overflow-hidden" style="background:${EMOTIONS[baskin[0]]?.tile ?? "#eee7df"};image-rendering:pixelated">
+        ${avatar ? `<div class="animate-bob">${avatar}</div>` : `<span class="material-symbols-outlined text-[44px] text-on-surface-variant">sentiment_neutral</span>`}</div>
+      <div class="flex flex-col gap-0.5">
+        <div class="flex items-center gap-space-xs flex-wrap"><span class="font-label-md font-bold text-primary">Baskın:</span>
+          <span class="font-headline-sm text-headline-sm text-on-surface font-bold">${esc(baskin.join(" + ") || "—")}</span></div>
+        ${has(z.duygular) ? `<span class="text-[13px] text-on-surface-variant">${esc(z.duygular)}</span>` : ""}
+      </div>
+    </div>
+    ${has(mod.aylar) ? `<div class="bg-surface-container-low border border-surface-container p-space-md flex flex-col gap-space-xs rounded-lg shadow-sm">
+      <div class="w-full overflow-hidden rounded">${moodChart(mod.aylar)}</div>
+      <div class="flex flex-wrap items-center justify-between gap-space-xs pt-space-xs text-[13px] border-t border-surface-container font-label-md">
+        ${has(mod.dip) ? `<span class="text-on-surface-variant flex items-center gap-1"><span class="text-[14px]">〰</span> dip noktası: <strong class="text-primary font-bold">“${esc(mod.dip)}”</strong></span>` : ""}
+        ${has(mod.zirve) ? `<span class="text-tertiary flex items-center gap-1"><span>✿</span> zirve: <strong class="font-bold text-on-surface">“${esc(mod.zirve)}”</strong></span>` : ""}
+      </div>
+    </div>` : ""}`;
+
+  // 3. dusunceler (zihnimin ici)
+  const thought = (label, t, border, color, bold, alt) => has(t) ? `
+    <div class="${alt ? "bg-surface-container" : "bg-surface-container-low"} p-space-lg flex flex-col gap-space-xs rounded-lg border-l-4 ${border}">
+      <span class="text-[14px] font-label-md ${color} font-bold tracking-wider">${label}</span>
+      <p class="text-[17px] md:text-[18px] font-body-lg ${bold ? "font-bold" : ""} text-on-surface leading-[1.6] m-0">“${esc(t)}”</p>
+    </div>` : "";
+  const thoughts = `<div class="flex flex-col gap-space-md">
+    ${thought("KAFAMI MEŞGUL EDEN", z.dusunceler, "border-secondary", "text-secondary")}
+    ${thought("HAYALLERİM", z.hayaller, "border-tertiary", "text-tertiary", true, true)}
+    ${thought("KAYGILARIM", z.kaygilar, "border-primary", "text-primary")}
+  </div>`;
+
+  // 4. hedefler
+  const goal = (g) => {
+    const done = g.durum === "tamamlandı", dropped = g.durum === "yarım kaldı";
+    return `<div class="p-space-lg bg-surface-container flex items-start gap-space-md rounded-lg">
+      <div class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-[18px] flex-shrink-0 ${done ? "bg-primary text-on-primary" : "border-2 border-outline text-outline"}">${done ? "✓" : dropped ? "" : "…"}</div>
+      <div class="flex flex-col gap-1">
+        <span class="text-[18px] font-title-md text-on-surface font-bold leading-snug ${dropped ? "line-through opacity-70" : ""}">${esc(g.baslik)}</span>
+        <span class="text-[15px] font-body-md font-bold ${done ? "text-primary" : dropped ? "text-on-surface-variant" : "text-tertiary"}">${esc(g.durum ? `${g.durum[0].toLocaleUpperCase("tr")}${g.durum.slice(1)}` : "")}${has(g.aciklama) ? ` · ${esc(g.aciklama)}` : ""}</span>
+      </div></div>`;
+  };
+  const goals = has(r.hedefler) ? `<div class="flex flex-col gap-space-md">${r.hedefler.map(goal).join("")}</div>` : `<p class="text-on-surface-variant">Bu döneme ait hedef izi yok.</p>`;
+
+  // 5. eslikciler
+  const chips = (label, icon, list) => has(list) ? `<div class="flex flex-col gap-space-sm">
+      <span class="text-[14px] font-label-md text-on-surface-variant uppercase tracking-wider font-bold">${label}</span>
+      <div class="flex flex-wrap gap-space-sm">${list.map((x) => `<span class="flex items-center gap-space-xs bg-surface-container-low px-3 py-1.5 rounded-lg border border-surface-container text-[16px] text-on-surface">
+        <span class="material-symbols-outlined text-primary text-[18px]">${icon}</span>${esc(x)}</span>`).join("")}</div></div>` : "";
+  const companions = has(e.takintilar) || has(e.rituel) ? box("interests", "5. Eşlikçiler", `<div class="grid grid-cols-1 md:grid-cols-2 gap-space-lg">
+      ${chips("Takıntılarım", "favorite", e.takintilar)}${chips("Ritüellerim", "repeat", e.rituel)}</div>`, "md:col-span-2") : "";
+
+  return `
+  <div class="flex flex-col w-full">
+    <div class="w-full max-w-5xl mx-auto px-margin md:px-margin-desktop py-space-md space-y-space-md">
+      <div class="bg-surface-container-lowest p-space-sm sm:p-space-md shadow-md flex flex-col md:flex-row md:items-center md:justify-between gap-space-sm relative overflow-hidden rounded-lg border border-outline-variant/20">
+        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-space-md w-full p-space-sm">
+          <div class="flex flex-col gap-1">
+            <div class="flex items-center gap-space-sm text-secondary font-label-md">
+              <span class="material-symbols-outlined text-primary text-[20px]">auto_stories</span>
+              <span>${esc(dateRange(era, r))} · ${esc(chapter(era))} Defteri</span>
+            </div>
+            <h1 class="text-[22px] md:text-[24px] font-title-md font-bold text-on-surface tracking-tight">${esc(r.odak_basligi ?? r.baslik ?? "")}</h1>
+          </div>
+          <div class="flex items-center gap-space-sm">
+            <a href="${href(era, "recap")}" class="px-space-md py-space-sm bg-surface-container hover:bg-surface-container-high text-on-surface font-label-md flex items-center gap-space-xs transition-transform active:translate-x-0.5 rounded-lg whitespace-nowrap">
+              <span class="material-symbols-outlined text-[16px]">arrow_back</span><span>Sayfa 1 (Recap)</span></a>
+            <a href="${href(era, "sohbet")}" class="px-space-md py-space-sm bg-primary text-on-primary hover:bg-on-primary-fixed-variant font-label-md flex items-center gap-space-xs transition-transform active:translate-x-0.5 rounded-lg shadow-sm whitespace-nowrap">
+              <span>Geçmişimle Sohbet</span><span class="material-symbols-outlined text-[16px]">arrow_forward</span></a>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-space-lg">
+        ${box("album", "1. Müzik", `<div class="flex flex-col gap-space-lg h-full justify-between">${music}</div>`)}
+        ${box("palette", "2. Mod Takibi", mood, "", "Ters Yüz Avatarı")}
+        ${box("edit_note", "3. Düşünceler", thoughts)}
+        ${box("task_alt", "4. Hedefler", goals)}
+        ${companions}
+      </div>
+
+      <div class="bg-surface-container-lowest p-space-md shadow-md flex flex-col sm:flex-row items-center justify-between gap-space-md rounded-lg border border-outline-variant/20">
+        <div class="flex items-center gap-space-sm">
+          <div class="w-9 h-9 bg-primary-container text-on-primary-container flex items-center justify-center shadow-sm rounded-lg"><span class="material-symbols-outlined text-[20px]">chat</span></div>
+          <div class="flex flex-col">
+            <span class="font-headline-sm text-headline-sm text-on-surface font-bold">BU DÖNEMİN REZONANSI</span>
+            <span class="font-label-sm text-label-sm text-on-surface-variant font-mono">Defter Yaprağı: ${era.n} / ${eras.length} · ${esc(era.ago)}</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-space-sm w-full sm:w-auto">
+          <a href="${href(era, "sohbet")}" class="w-full sm:w-auto px-space-lg py-space-sm bg-primary hover:bg-on-primary-fixed-variant text-on-primary flex items-center justify-center gap-space-xs shadow-md transition-transform active:translate-y-0.5 rounded-lg font-bold">
+            <span class="material-symbols-outlined text-[18px]">forum</span><span class="font-headline-sm text-headline-sm">💬 O Dönemle Konuş</span></a>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+// ---------- 4: GECMISIMLE SOHBET ----------
+function ChatPage(era, r) {
+  const sorular = (r?.sorular ?? []).slice(0, 3);
+  return `
+  <div class="flex flex-col w-full">
+    <div class="w-full min-h-[calc(100vh-7rem)] bg-[#120724] text-[#FFFCF8] flex flex-col justify-between relative selection:bg-[#E87CB0] selection:text-[#0A0318]">
+      <div class="w-full border-b border-[#2A1A40] bg-[#190D30]/90 px-4 md:px-margin-desktop py-4 flex flex-wrap items-center justify-between gap-3 sticky top-16 z-20 shadow-[0_2px_0_0_#2D1B3D] backdrop-blur-sm">
+        <div class="flex items-center gap-3">
+          <a href="${href(era, "odak")}" class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-[#2A1A40] hover:bg-[#33224d] text-[#FFD8E6] font-label-md transition-colors shadow-[2px_2px_0_0_#0A0318] rounded-lg">
+            <span class="material-symbols-outlined text-[16px]">arrow_back</span><span>Deftere Dön</span></a>
+          <div class="h-4 w-px bg-[#2D1B3D] hidden sm:block"></div>
+          <div>
+            <h1 class="font-headline-sm text-[16px] text-[#FFD8E6] tracking-wide font-bold">Geçmişimle Sohbet</h1>
+            <p class="font-body-sm text-[12px] text-[#A8CFC0]">${esc(r?.now ?? era.label)} (${esc(era.ago)}) ↔ Bugün (${esc(todayLabel())})</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-2 text-[#A8CFC0] font-label-sm bg-[#150A2A] px-3 py-1.5 border border-[#2A1A40] rounded-lg">
+          <span class="w-2 h-2 rounded-full bg-[#81A799] animate-pulse"></span><span>Zaman Köprüsü Aktif</span>
+        </div>
+      </div>
+
+      <div id="feed" class="w-full max-w-4xl mx-auto px-4 md:px-6 py-8 flex flex-col gap-6 flex-1">
+        <div class="flex items-center justify-center my-2">
+          <span class="bg-[#1F1433] text-[#A8CFC0] px-4 py-1.5 font-label-sm text-[11px] tracking-wider border border-[#2D1B3D] rounded-lg uppercase">
+            ${esc(r?.now ?? era.label)}${has(r?.age) ? ` · ${esc(r.age)} yaş` : ""} · ${esc(chapter(era))}</span>
+        </div>
+      </div>
+
+      <div class="w-full bg-[#150A2A] border-t border-[#2A1A40] p-4 md:p-6 sticky bottom-10 z-30 shadow-[0_-4px_12px_rgba(0,0,0,0.35)]">
+        <div class="max-w-4xl mx-auto flex flex-col gap-3">
+          ${sorular.length ? `<div class="flex items-center gap-2 overflow-x-auto pb-1">
+            <span class="text-[#867279] text-[12px] font-mono whitespace-nowrap">Hızlı Sor:</span>
+            ${sorular.map((q) => `<button type="button" data-q="${esc(q)}" class="quick px-3 py-1 bg-[#1F1433] hover:bg-[#2A1A40] text-[#A8CFC0] text-[13px] whitespace-nowrap border border-[#2D1B3D] transition-colors rounded-lg cursor-pointer">✦ "${esc(q)}"</button>`).join("")}
+          </div>` : ""}
+          <form id="chatForm" class="flex items-center gap-3 bg-[#0A0318] p-2 md:p-3 border-2 border-[#2D1B3D] focus-within:border-[#E87CB0] transition-colors shadow-[inset_2px_2px_0_0_#000000] rounded-lg">
+            <span class="text-[#E87CB0] font-mono font-bold text-[22px] px-2 select-none">&gt;</span>
+            <input id="chatIn" type="text" autocomplete="off" placeholder="Geçmişine bir şey fısılda… (Örn: ${esc(sorular[0] ?? "o günler nasıl geçiyor?")})"
+              class="w-full bg-transparent text-[#FFFCF8] text-[16px] md:text-[18px] placeholder-[#867279] focus:outline-none">
+            <button type="submit" class="px-6 py-2.5 bg-[#E87CB0] text-[#0A0318] font-bold text-[15px] font-headline-sm hover:bg-[#ff8ec5] active:translate-y-[1px] transition-all flex items-center gap-2 shadow-[2px_2px_0_0_#671144] rounded-lg cursor-pointer flex-shrink-0">
+              <span>GÖNDER</span><span class="material-symbols-outlined text-[18px]">send</span></button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function bubble(m, era) {
+  const past = m.who === "past";
+  return `<div class="flex items-start gap-4 max-w-2xl transition-all duration-300 ${past ? "self-start" : "self-end flex-row-reverse"}">
+    <div class="w-11 h-11 flex-shrink-0 border-2 shadow-[3px_3px_0_0_#0A0318] flex items-center justify-center rounded-lg ${past ? "bg-[#1E2D5E] border-[#5A90E0] text-[#5A90E0]" : "bg-[#2A1A40] border-[#E87CB0] text-[#E87CB0]"}">
+      <span class="material-symbols-outlined text-[24px]">${past ? "history_toggle_off" : "person"}</span></div>
+    <div class="flex flex-col gap-1.5 ${past ? "" : "items-end text-right"}">
+      <div class="flex items-center gap-2">
+        <span class="font-bold font-headline-sm text-[13px] tracking-wide ${past ? "text-[#5A90E0]" : "text-[#E87CB0]"}">${past ? `GEÇMİŞ SEN (${esc(era.ago.replace(" önceki sen", " önce").replace("şimdiki sen", "şimdi").toLocaleUpperCase("tr"))})` : "ŞİMDİKİ SEN"}</span>
+        <span class="text-[#867279] text-[12px] font-mono">${esc(m.time)}</span>
+      </div>
+      <div class="p-5 shadow-[4px_4px_0_0_#0A0318] text-[17px] md:text-[18px] leading-[1.65] rounded-lg whitespace-pre-line text-left ${past ? "bg-[#1E2D5E] text-[#FFFCF8] border border-[#5A90E0]/30" : "bg-[#2A1A40] text-[#FFFCF8] border border-[#E87CB0]/40"} ${m.error ? "opacity-70 italic" : ""}">${esc(m.text)}</div>
+    </div></div>`;
+}
+
+function bindChat(era, r) {
+  const st = (chats[era.period] ??= { history: [], shown: [], opened: false });
+  const feed = $("#feed"), input = $("#chatIn");
+  const typing = `<div id="typing" class="flex items-center gap-2 text-[#5A90E0] font-label-sm text-[12px] self-start bg-[#1E2D5E]/40 px-3 py-1.5 rounded-lg border border-[#5A90E0]/30 animate-pulse">
+    <span class="material-symbols-outlined text-[16px]">edit</span><span>Geçmiş sen daktiloda yazıyor...</span></div>`;
+  const draw = (busy) => {
+    feed.querySelectorAll(".msg, #typing").forEach((n) => n.remove());
+    feed.insertAdjacentHTML("beforeend", st.shown.map((m) => `<div class="msg flex flex-col">${bubble(m, era)}</div>`).join("") + (busy ? typing : ""));
+    window.scrollTo(0, document.body.scrollHeight);
+  };
+  let busy = false;
+
+  async function ask(body) {
+    busy = true; draw(true);
+    try {
+      const res = await fetch("/api/chat", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ period: era.period, ...body }) });
+      const d = await res.json();
+      if (d.reply) {
+        if (d.opener) st.history.push({ role: "user", content: d.opener });
+        st.history.push({ role: "assistant", content: d.reply });
+        st.shown.push({ who: "past", text: d.reply, time: clockNow() });
+        blip();
+        return true;
+      }
+      st.shown.push({ who: "past", text: `(cevap gelmedi: ${d.error ?? "bilinmeyen hata"})`, time: clockNow(), error: true });
+    } catch (err) {
+      st.shown.push({ who: "past", text: `(bağlantı hatası: ${err.message})`, time: clockNow(), error: true });
+    } finally {
+      busy = false;
+      if (route.page === "sohbet" && route.era === era) draw(false);
+    }
+    return false;
+  }
+
+  async function send(text) {
+    text = text.trim();
+    if (!text || busy) return;
+    input.value = "";
+    st.shown.push({ who: "present", text, time: `${clockNow()} (Şimdi)` });
+    st.history.push({ role: "user", content: text });
+    if (!(await ask({ messages: st.history }))) st.history.pop();
+  }
+
+  $("#chatForm").onsubmit = (e) => { e.preventDefault(); send(input.value); };
+  view.querySelectorAll(".quick").forEach((b) => (b.onclick = () => send(b.dataset.q)));
+  draw(false);
+  input.focus();
+  // ilk acilista selami gecmis sen verir
+  if (!st.opened) { st.opened = true; ask({ opener: true }); }
+}
+
+setInterval(() => ($("#clock").textContent = `${clockNow()} GMT+3`), 30000);
+$("#clock").textContent = `${clockNow()} GMT+3`;
+init();
+</script>
+</body>
+</html>

@@ -1,0 +1,188 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "entry.schema.json",
+  "title": "JournalEntry",
+  "description": "Tek bir günlük kaydı. daily/weekly/monthly tiplerine göre zorunlu alanlar değişir.",
+  "type": "object",
+  "required": [
+    "id",
+    "persona_id",
+    "date",
+    "type",
+    "input_mode"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "schemas/ altındaki şema dosyasına göreli yol"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$",
+      "description": "örnek: elif-2025-05-03"
+    },
+    "persona_id": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "type": {
+      "enum": [
+        "daily",
+        "weekly",
+        "monthly"
+      ]
+    },
+    "input_mode": {
+      "enum": [
+        "text",
+        "voice"
+      ]
+    },
+    "mood_score": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 10,
+      "description": "0-10 duygu puanı (günlükte zorunlu)"
+    },
+    "emotion_labels": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Kullanıcının seçtiği duygu etiketleri"
+    },
+    "answers": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "what_affected": {
+          "type": "string",
+          "description": "Bugün seni en çok ne etkiledi?"
+        },
+        "values_action": {
+          "type": "string",
+          "description": "Bugün değerlerine uygun yaptığın bir şey?"
+        }
+      }
+    },
+    "text": {
+      "type": "string",
+      "description": "Serbest metin veya sesli kaydın transkripti"
+    },
+    "scale": {
+      "type": "object",
+      "required": [
+        "scale_id",
+        "responses"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "scale_id": {
+          "type": "string",
+          "description": "örnek: who5"
+        },
+        "responses": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "total": {
+          "type": "number"
+        }
+      }
+    },
+    "letter_to_future_self": {
+      "type": "string",
+      "description": "Aylık kayıt: gelecekteki kendine mektup"
+    },
+    "analysis": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "AI akışı çıktısı; demo verisinde ön-hesaplı, runtime'da LLM üretir",
+      "properties": {
+        "emotions": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "themes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "self_talk_tone": {
+          "enum": [
+            "self-critical",
+            "balanced",
+            "self-compassionate"
+          ]
+        },
+        "value_links": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "risk_flag": {
+          "type": "boolean"
+        }
+      }
+    },
+    "created_at": {
+      "type": "string",
+      "format": "date-time"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "daily"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "text",
+          "mood_score"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "weekly"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "scale"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "type": {
+            "const": "monthly"
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "letter_to_future_self"
+        ]
+      }
+    }
+  ]
+}

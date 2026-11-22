@@ -1,0 +1,38 @@
+{
+  "$schema": "../../schemas/mirror-report.schema.json",
+  "id": "mirror-elif-2025-05-2025-10",
+  "persona_id": "elif",
+  "period_a": { "from": "2025-05-01", "to": "2025-05-31" },
+  "period_b": { "from": "2025-10-01", "to": "2025-10-31" },
+  "generated_by": "manual-seed",
+  "observations": [
+    {
+      "claim": "İç konuşman öz-eleştirelden öz-şefkatliye evrildi: Mayıs'ta başarısızlığı kişilik kusuru gibi yazıyordun, Ekim'de sürecin parçası olarak.",
+      "category": "self-talk",
+      "evidence": [
+        { "entry_id": "elif-2025-05-03", "date": "2025-05-03", "quote": "Yine beceremedim. Sunumda dondum kaldım" },
+        { "entry_id": "elif-2025-10-08", "date": "2025-10-08", "quote": "İlk denememdi, mükemmel olmak zorunda değildi." }
+      ],
+      "confidence": "high"
+    },
+    {
+      "claim": "Geleceğe bakışın değişti: Mayıs'ta iyi bir günü bile geçici şans olarak küçümsüyordun; Ekim'de aksilikleri 'henüz olmadı' diye çerçeveliyorsun.",
+      "category": "theme",
+      "evidence": [
+        { "entry_id": "elif-2025-05-20", "date": "2025-05-20", "quote": "yarın muhtemelen yine batırırım" },
+        { "entry_id": "elif-2025-10-22", "date": "2025-10-22", "quote": "'Henüz olmadı' dedim" }
+      ],
+      "confidence": "high"
+    },
+    {
+      "claim": "Değerlerine uygun davranışlar cesaretlendi: Mayıs'ta 'yine de gittim' seviyesindeydi, Ekim'de korkuya rağmen gönüllü oldun.",
+      "category": "values",
+      "evidence": [
+        { "entry_id": "elif-2025-05-03", "date": "2025-05-03", "quote": "Yine de laboratuvara gittim ve deneyi baştan tekrarladım" },
+        { "entry_id": "elif-2025-10-08", "date": "2025-10-08", "quote": "Korkuma rağmen sahneye çıktım" }
+      ],
+      "confidence": "medium"
+    }
+  ],
+  "note": "Demo için ön-hesaplı rapor. Altın kural kontrolü scripts/validate.mjs ile yapılır."
+}

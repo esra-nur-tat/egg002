@@ -1,0 +1,14 @@
+{
+  "id": "altin-kural",
+  "description": "Her AI gözlemi kullanıcının kendi cümlesiyle (verbatim alıntı) desteklenmek zorunda. Kanıtsız yorum gösterilmez.",
+  "rules": [
+    "Her observation en az bir evidence içerir; evidence.quote ilgili entry'nin text/answers alanının birebir alt dizesi olmalı.",
+    "LLM uydurma alıntı üretirse gösterilmez; validate.mjs CI'da bunu kontrol eder.",
+    "Ayna raporunda metrik iddiaları (mood trendi gibi) entry verilerinden hesaplanabilir olmalı.",
+    "Kullanıcıya 'senin sözlerinle' sunumu zorunlu: alıntı her zaman tıklanabilir kaynağıyla gösterilir."
+  ],
+  "examples": {
+    "valid": "Mayıs'ta 'yine beceremedim' yazmışsın, Ekim'de 'ilk denememdi' yazmışsın.",
+    "invalid": "Son zamanlarda kendine güvenin artmış görünüyor."
+  }
+}

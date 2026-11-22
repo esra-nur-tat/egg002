@@ -1,0 +1,51 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "persona.schema.json",
+  "title": "Persona",
+  "description": "Simüle demo kullanıcısı tanımı (örn. Elif).",
+  "type": "object",
+  "required": [
+    "id",
+    "name",
+    "age",
+    "summary"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "schemas/ altındaki şema dosyasına göreli yol"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "name": {
+      "type": "string"
+    },
+    "age": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "summary": {
+      "type": "string"
+    },
+    "context": {
+      "type": "string",
+      "description": "Yaşam bağlamı (iş, okul, şehir...)"
+    },
+    "values": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "arc": {
+      "type": "string",
+      "description": "Simülasyonun duygusal yayı; verinin klinik olarak inandırıcı ilerleme hikâyesi"
+    },
+    "note": {
+      "type": "string"
+    }
+  }
+}

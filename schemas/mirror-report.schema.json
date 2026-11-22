@@ -1,0 +1,124 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "mirror-report.schema.json",
+  "title": "MirrorReport",
+  "description": "Ayna raporu: iki dönem karşılaştırması. ALTIN KURAL: her gözlem, kullanıcının kendi cümlesiyle (verbatim) desteklenmek zorunda. Kanıtsız observation geçersizdir.",
+  "type": "object",
+  "required": [
+    "id",
+    "persona_id",
+    "period_a",
+    "period_b",
+    "generated_by",
+    "observations"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "schemas/ altındaki şema dosyasına göreli yol"
+    },
+    "id": {
+      "type": "string"
+    },
+    "persona_id": {
+      "type": "string"
+    },
+    "period_a": {
+      "$ref": "#/definitions/period"
+    },
+    "period_b": {
+      "$ref": "#/definitions/period"
+    },
+    "generated_by": {
+      "type": "string",
+      "description": "örn. manual-seed, llm-gpt-x-v1"
+    },
+    "observations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "claim",
+          "evidence"
+        ],
+        "additionalProperties": false,
+        "properties": {
+          "claim": {
+            "type": "string",
+            "description": "Kullanıcıya gösterilecek gözlem cümlesi"
+          },
+          "category": {
+            "enum": [
+              "self-talk",
+              "emotion",
+              "theme",
+              "values",
+              "mood-trend",
+              "risk",
+              "other"
+            ]
+          },
+          "evidence": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Her biri bir entry'den VERBATIM alıntı; validate.mjs kontrol eder",
+            "items": {
+              "type": "object",
+              "required": [
+                "entry_id",
+                "quote"
+              ],
+              "additionalProperties": false,
+              "properties": {
+                "entry_id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string",
+                  "format": "date"
+                },
+                "quote": {
+                  "type": "string",
+                  "minLength": 3,
+                  "description": "Entry metninin birebir alt dizesi olmalı"
+                }
+              }
+            }
+          },
+          "confidence": {
+            "enum": [
+              "low",
+              "medium",
+              "high"
+            ]
+          }
+        }
+      }
+    },
+    "note": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "period": {
+      "type": "object",
+      "required": [
+        "from",
+        "to"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "from": {
+          "type": "string",
+          "format": "date"
+        },
+        "to": {
+          "type": "string",
+          "format": "date"
+        }
+      }
+    }
+  }
+}

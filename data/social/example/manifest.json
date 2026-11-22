@@ -1,0 +1,15 @@
+{
+  "$schema": "../../../schemas/social-manifest.schema.json",
+  "schema_version": "1.0.0",
+  "generated_at": "2026-11-22T14:00:00.000Z",
+  "platforms": [
+    {
+      "platform": "twitter",
+      "files": ["data/tweets.js"],
+      "item_count": 2,
+      "counts_by_type": { "post": 2 },
+      "date_range": { "from": "2025-03-01T10:00:00.000Z", "to": "2025-10-15T18:30:00.000Z" }
+    }
+  ],
+  "note": "Ornek cikti - ingestExport() uretim formati."
+}

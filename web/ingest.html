@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>egg2 — yerel ingest</title>
+<style>
+  body { font: 14px/1.5 ui-monospace, monospace; max-width: 720px; margin: 40px auto; padding: 0 16px; color: #222; }
+  #drop { border: 2px dashed #999; border-radius: 12px; padding: 48px 24px; text-align: center; }
+  #drop.over { border-color: #222; background: #f5f5f5; }
+  #out { white-space: pre-wrap; background: #f7f7f7; padding: 12px; border-radius: 8px; max-height: 300px; overflow: auto; }
+  button { padding: 8px 16px; margin-right: 8px; cursor: pointer; }
+  .dim { color: #777; }
+</style>
+</head>
+<body>
+<h1>egg2 — yerel veri ingest</h1>
+<p class="dim">ZIP sürükle → tarayıcıda parse edilir → normalize <code>items.jsonl</code> + <code>manifest.json</code> iner. Hiçbir veri bu cihazdan çıkmaz.</p>
+
+<div id="drop">export ZIP'ini buraya sürükle<br><span class="dim">Instagram · X/Twitter · TikTok · Pinterest · Claude · WhatsApp</span></div>
+<p><input type="file" id="file" accept=".zip,.json,.txt,.html"></p>
+
+<div id="result" hidden>
+  <h2 id="summary"></h2>
+  <div id="out"></div>
+  <p>
+    <button id="dlItems">items.jsonl indir</button>
+    <button id="dlManifest">manifest.json indir</button>
+    <button id="saveDir" hidden>klasöre yaz (File System Access)</button>
+  </p>
+</div>
+
+<script type="module">
+import { unzipSync, strFromU8 } from "/vendor/fflate.js";
+import { ingestExport } from "/ingest/index.mjs";
+import { detectPlatform } from "/ingest/detect.mjs";
+
+const TEXT_RE = /\.(json|txt|html|js|md|csv)$/i;
+const drop = document.getElementById("drop");
+const fileInput = document.getElementById("file");
+const result = document.getElementById("result");
+const out = document.getElementById("out");
+const summary = document.getElementById("summary");
+let last = null;
+
+drop.ondragover = (e) => { e.preventDefault(); drop.classList.add("over"); };
+drop.ondragleave = () => drop.classList.remove("over");
+drop.ondrop = (e) => { e.preventDefault(); drop.classList.remove("over"); handle(e.dataTransfer.files[0]); };
+fileInput.onchange = () => handle(fileInput.files[0]);
+
+async function handle(file) {
+  if (!file) return;
+  summary.textContent = `okunuyor: ${file.name} (${(file.size / 1e6).toFixed(1)} MB)…`;
+  result.hidden = false; out.textContent = "";
+  try {
+    const files = await extract(file);
+    const platform = detectPlatform(files.map(f => f.name), (n) => files.find(f => f.name === n)?.text);
+    if (!platform) throw new Error("Platform tanınamadı");
+    summary.textContent = `${platform} — ${files.length} metin dosyası, parse ediliyor…`;
+    await new Promise(r => setTimeout(r)); // UI nefes alsın
+    last = ingestExport(files);
+    const pf = last.manifest.platforms[0];
+    summary.textContent = `${platform}: ${pf.item_count} kayıt`;
+    out.textContent =
+      `türler: ${JSON.stringify(pf.counts_by_type)}\n` +
+      `aralık: ${pf.date_range.from} → ${pf.date_range.to}\n` +
+      (last.skipped.length ? `atlanan: ${last.skipped.length} dosya\n` : "") +
+      `\n--- ilk 3 kayıt ---\n` +
+      last.items.slice(0, 3).map(i => JSON.stringify(i)).join("\n");
+    document.getElementById("saveDir").hidden = !window.showDirectoryPicker;
+  } catch (err) {
+    summary.textContent = `hata: ${err.message}`;
+  }
+}
+
+async function extract(file) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  if (file.name.toLowerCase().endsWith(".zip")) {
+    const entries = unzipSync(buf);
+    const files = [];
+    for (const [name, data] of Object.entries(entries)) {
+      if (name.endsWith("/") || !TEXT_RE.test(name)) continue;
+      files.push({ name, text: strFromU8(data) });
+    }
+    return files;
+  }
+  // tek dosya (ör. conversations.json, _chat.txt)
+  return [{ name: file.name, text: await file.text() }];
+}
+
+function download(name, content, type = "application/json") {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(new Blob([content], { type }));
+  a.download = name; a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+document.getElementById("dlItems").onclick = () =>
+  last && download("items.jsonl", last.itemsJsonl, "application/x-ndjson");
+document.getElementById("dlManifest").onclick = () =>
+  last && download("manifest.json", JSON.stringify(last.manifest, null, 2));
+document.getElementById("saveDir").onclick = async () => {
+  if (!last || !window.showDirectoryPicker) return;
+  const dir = await showDirectoryPicker({ mode: "readwrite" });
+  const pf = last.manifest.platforms[0];
+  const sub = await dir.getDirectoryHandle(pf.platform, { create: true });
+  for (const [name, content] of [
+    ["items.jsonl", last.itemsJsonl],
+    ["manifest.json", JSON.stringify(last.manifest, null, 2)],
+  ]) {
+    const fh = await sub.getFileHandle(name, { create: true });
+    const w = await fh.createWritable();
+    await w.write(content); await w.close();
+  }
+  summary.textContent += " — klasöre yazıldı ✓";
+};
+</script>
+</body>
+</html>

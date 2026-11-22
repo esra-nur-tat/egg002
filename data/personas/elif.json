@@ -1,0 +1,11 @@
+{
+  "$schema": "../../schemas/persona.schema.json",
+  "id": "elif",
+  "name": "Elif",
+  "age": 24,
+  "summary": "İstanbul'da yüksek lisans öğrencisi. Tez sürecinde kaygı ve öz-eleştiriyle başlayan, altı ay içinde öz-şefkatli dile evrilen simüle persona.",
+  "context": "Bilişim alanında yüksek lisans, yarım zamanlı araştırma asistanı. Tez teslimi yaklaşıyor.",
+  "values": ["öğrenme", "dürüstlük", "aile", "yaratıcılık"],
+  "arc": "Mayıs-Haziran: yüksek kaygı, öz-eleştirel dil ('yine beceremedim'). Temmuz-Ağustos: dalgalı, küçük iyileşme işaretleri. Eylül-Ekim: öz-şefkatli dil ('ilk denememdi'), değer-uyumlu davranışlarda artış.",
+  "note": "Tamamen simüle edilmiş demo verisi. Klinik tutarlılık notları: docs/elif/."
+}

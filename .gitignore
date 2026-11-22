@@ -1,0 +1,17 @@
+node_modules/
+
+# Kisisel veri: ham export'lar, normalize kayitlar, persona kartlari, ozetler — asla commit'lenmez
+my-data/
+*.zip
+*.db
+
+# WhatsApp oturum dosyalari (scripts/whatsapp-sync.mjs) — konum degisirse de yakalansin
+**/.auth/
+
+# Gizli anahtarlar
+.env
+.env.*
+!.env.example
+
+*.log
+.DS_Store

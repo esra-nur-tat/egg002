@@ -1,0 +1,17 @@
+{
+  "id": "entry-extraction",
+  "description": "Her kayıt sonrası LLM'den çıkarılacak yapılandırılmış alanlar (entry.analysis).",
+  "output_schema_ref": "../../schemas/entry.schema.json#/properties/analysis",
+  "extract": {
+    "emotions": "Kayıtta geçen baskın duygular (etiket değil, çıkarsama da olabilir)",
+    "themes": "Tekrar eden konu başlıkları (örn. akademik-performans, ilişki, uyku)",
+    "self_talk_tone": "İç konuşmanın tonu: self-critical | balanced | self-compassionate",
+    "value_links": "Kullanıcının tanımlı değerleriyle bağlantılı davranışlar",
+    "risk_flag": "risk.json'daki işaretlere göre true/false"
+  },
+  "constraints": [
+    "Duygu etiketleri Türkçe olmalı.",
+    "Themes kebab-case tutulur (filtreleme kolaylığı).",
+    "Çıktı JSON şemaya uymayan alan üretirse reddedilir, yeniden denenir."
+  ]
+}

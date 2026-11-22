@@ -1,0 +1,27 @@
+{
+  "id": "risk-flags",
+  "description": "Kayıt analizinde risk işareti tespit edilirse normal akış durur, kriz ekranı açılır.",
+  "crisis_screen": {
+    "title": "Yalnız değilsin",
+    "actions": [
+      { "label": "112'yi Ara", "type": "tel", "value": "112" },
+      { "label": "En yakın acil servis", "type": "maps", "value": "acil servis" }
+    ]
+  },
+  "signals": [
+    {
+      "category": "self-harm",
+      "severity": "high",
+      "patterns": ["kendime zarar", "yaşamak istemiyorum", "intihar", "ölmek istiyorum"],
+      "note": "LLM bağlama göre değerlendirir; keyword listesi sadece ilk filtre."
+    },
+    {
+      "category": "hopelessness",
+      "severity": "medium",
+      "patterns": ["hiç umut yok", "dayanamayacağım"],
+      "note": "Tek başına kriz değil; sıklık ve şiddet ile birlikte değerlendirilir."
+    }
+  ],
+  "flow": "kayıt -> analiz -> risk_flag=true ? kriz ekranı : normal akış",
+  "note": "Bu liste yer tutucu; klinik ekip genişletecek."
+}
